@@ -93,6 +93,21 @@ export default function BrowsePage() {
         </Link>
       </div>
 
+      {/* Subject Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {subjects.map((subject) => (
+          <Link
+            key={subject.id}
+            href={`/subjects/${subject.id}`}
+            className="bg-white rounded-lg shadow p-4 hover:shadow-md transition text-center"
+          >
+            <span className="text-3xl">{subject.icon}</span>
+            <h3 className="font-medium text-gray-900 mt-2">{subject.name}</h3>
+            <p className="text-xs text-gray-500">{subject.levels.length} levels</p>
+          </Link>
+        ))}
+      </div>
+
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex flex-wrap gap-4">
@@ -212,3 +227,4 @@ export default function BrowsePage() {
     </div>
   )
 }
+
