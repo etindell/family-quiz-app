@@ -1,0 +1,161 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
+
+interface Answer {
+  question_id: string
+  selected_answer: string
+  is_correct: boolean
+}
+
+interface Question {
+  id: string
+  correct_answer: string
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession()
+    if (!session.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id } = await params
+
+    const attempts = await prisma.attempt.findMany({
+      where: {
+        quizId: id,
+        userId: session.userId,
+      },
+      orderBy: { completedAt: 'desc' },
+    })
+
+    return NextResponse.json({ attempts })
+  } catch (error) {
+    console.error('Get attempts error:', error)
+    return NextResponse.json({ error: 'Failed to get attempts' }, { status: 500 })
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession()
+    if (!session.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id } = await params
+    const { answers, timeTakenSeconds, timezone } = await request.json()
+
+    // Get the quiz
+    const quiz = await prisma.quiz.findUnique({
+      where: { id },
+    })
+
+    if (!quiz) {
+      return NextResponse.json({ error: 'Quiz not found' }, { status: 404 })
+    }
+
+    // Parse questions and calculate score
+    const questionsData = JSON.parse(quiz.questions) as { questions: Question[] }
+    const questions = questionsData.questions
+
+    let score = 0
+    const processedAnswers: Answer[] = answers.map((answer: { question_id: string; selected_answer: string }) => {
+      const question = questions.find((q) => q.id === answer.question_id)
+      const isCorrect = question?.correct_answer === answer.selected_answer
+      if (isCorrect) score++
+      return {
+        question_id: answer.question_id,
+        selected_answer: answer.selected_answer,
+        is_correct: isCorrect,
+      }
+    })
+
+    // Check if this is the first attempt
+    const existingAttempt = await prisma.attempt.findFirst({
+      where: {
+        quizId: id,
+        userId: session.userId,
+      },
+    })
+
+    const isFirstAttempt = !existingAttempt
+
+    // Create the attempt
+    const attempt = await prisma.attempt.create({
+      data: {
+        userId: session.userId,
+        quizId: id,
+        isFirstAttempt,
+        score,
+        totalQuestions: questions.length,
+        answers: JSON.stringify({ answers: processedAnswers }),
+        timeTakenSeconds: timeTakenSeconds || null,
+      },
+    })
+
+    // Update streak if first attempt
+    if (isFirstAttempt) {
+      await updateStreak(session.userId, timezone || 'UTC')
+    }
+
+    return NextResponse.json({ attempt, score, totalQuestions: questions.length })
+  } catch (error) {
+    console.error('Submit attempt error:', error)
+    return NextResponse.json({ error: 'Failed to submit attempt' }, { status: 500 })
+  }
+}
+
+async function updateStreak(userId: string, timezone: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { lastQuizDate: true, currentStreak: true, longestStreak: true },
+  })
+
+  if (!user) return
+
+  // Get today's date in user's timezone
+  const now = new Date()
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const todayStr = formatter.format(now)
+  const today = new Date(todayStr + 'T00:00:00Z')
+
+  let newStreak = 1
+
+  if (user.lastQuizDate) {
+    const lastDateStr = formatter.format(user.lastQuizDate)
+    const lastDate = new Date(lastDateStr + 'T00:00:00Z')
+
+    const diffDays = Math.floor((today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) {
+      // Same day, no streak change
+      return
+    } else if (diffDays === 1) {
+      // Consecutive day
+      newStreak = user.currentStreak + 1
+    }
+    // Otherwise, reset to 1
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      currentStreak: newStreak,
+      longestStreak: Math.max(newStreak, user.longestStreak),
+      lastQuizDate: today,
+    },
+  })
+}

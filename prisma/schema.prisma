@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  username      String   @unique
+  passwordHash  String   @map("password_hash")
+  displayName   String   @map("display_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+  currentStreak Int      @default(0) @map("current_streak")
+  lastQuizDate  DateTime? @map("last_quiz_date")
+  longestStreak Int      @default(0) @map("longest_streak")
+
+  categories        Category[]
+  quizzes           Quiz[]
+  attempts          Attempt[]
+  assessments       Assessment[]
+  userSubjectLevels UserSubjectLevel[]
+  sessions          Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Subject {
+  id        String @id @default(uuid())
+  name      String @unique
+  icon      String
+  sortOrder Int    @map("sort_order")
+
+  levels            Level[]
+  categories        Category[]
+  assessments       Assessment[]
+  userSubjectLevels UserSubjectLevel[]
+
+  @@map("subjects")
+}
+
+model Level {
+  id        String @id @default(uuid())
+  subjectId String @map("subject_id")
+  name      String
+  sortOrder Int    @map("sort_order")
+
+  subject                   Subject            @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  categories                Category[]
+  userSubjectLevelsCurrent  UserSubjectLevel[] @relation("CurrentLevel")
+  userSubjectLevelsSuggested UserSubjectLevel[] @relation("SuggestedLevel")
+  assessmentsSuggested      Assessment[]
+
+  @@unique([subjectId, name])
+  @@map("levels")
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  subjectId String   @map("subject_id")
+  levelId   String   @map("level_id")
+  topicName String   @map("topic_name")
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  level   Level   @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  creator User    @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  quizzes Quiz[]
+
+  @@map("categories")
+}
+
+model Quiz {
+  id               String   @id @default(uuid())
+  categoryId       String   @map("category_id")
+  questions        String   // JSON string
+  questionCount    Int      @map("question_count")
+  timeLimitMinutes Int?     @map("time_limit_minutes")
+  createdBy        String   @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  category Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  creator  User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  attempts Attempt[]
+
+  @@map("quizzes")
+}
+
+model Attempt {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  quizId         String   @map("quiz_id")
+  isFirstAttempt Boolean  @map("is_first_attempt")
+  score          Int
+  totalQuestions Int      @map("total_questions")
+  answers        String   // JSON string
+  timeTakenSeconds Int?   @map("time_taken_seconds")
+  completedAt    DateTime @default(now()) @map("completed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@map("attempts")
+}
+
+model Assessment {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  subjectId        String   @map("subject_id")
+  questions        String   // JSON string
+  answers          String?  // JSON string, null until submitted
+  scoreByLevel     String?  @map("score_by_level") // JSON string
+  suggestedLevelId String?  @map("suggested_level_id")
+  completedAt      DateTime? @map("completed_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject        Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  suggestedLevel Level?   @relation(fields: [suggestedLevelId], references: [id])
+
+  @@map("assessments")
+}
+
+model UserSubjectLevel {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  subjectId        String    @map("subject_id")
+  currentLevelId   String    @map("current_level_id")
+  suggestedLevelId String?   @map("suggested_level_id")
+  lastAssessedAt   DateTime? @map("last_assessed_at")
+
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject        Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  currentLevel   Level   @relation("CurrentLevel", fields: [currentLevelId], references: [id])
+  suggestedLevel Level?  @relation("SuggestedLevel", fields: [suggestedLevelId], references: [id])
+
+  @@unique([userId, subjectId])
+  @@map("user_subject_levels")
+}
