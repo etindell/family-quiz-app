@@ -39,6 +39,7 @@ interface AdaptiveAnswer {
   selected_answer: string
   is_correct: boolean
   level_id: string
+  level_name: string
   question_number: number
 }
 
@@ -195,6 +196,7 @@ export default function AssessmentPage() {
       selected_answer: selectedAnswer,
       is_correct: isCorrect,
       level_id: levels[currentLevelIndex].id,
+      level_name: levels[currentLevelIndex].name,
       question_number: questionNumber,
     }
 

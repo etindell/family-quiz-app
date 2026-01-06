@@ -8,6 +8,7 @@ interface AdaptiveAnswer {
   is_correct: boolean
   level_id: string
   level_name: string
+  question_number: number
 }
 
 export async function GET(
