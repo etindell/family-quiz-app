@@ -7,6 +7,7 @@ const subjects = [
   { name: 'Science', icon: '🔬', sortOrder: 2 },
   { name: 'History', icon: '📜', sortOrder: 3 },
   { name: 'Spanish', icon: '🇪🇸', sortOrder: 4 },
+  { name: 'Computer Programming', icon: '💻', sortOrder: 5 },
 ]
 
 const levelsBySubject: Record<string, string[]> = {
@@ -56,6 +57,20 @@ const levelsBySubject: Record<string, string[]> = {
     'Intermediate',
     'Upper Intermediate',
     'Advanced',
+  ],
+  'Computer Programming': [
+    'Coding Basics',
+    'Variables & Data',
+    'Logic & Control Flow',
+    'Loops & Iteration',
+    'Functions',
+    'Data Structures',
+    'Web Fundamentals',
+    'JavaScript Essentials',
+    'Databases & APIs',
+    'Git & Collaboration',
+    'AI & LLM Fundamentals',
+    'AI-Assisted Coding',
   ],
 }
 
