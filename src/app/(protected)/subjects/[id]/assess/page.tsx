@@ -177,8 +177,8 @@ export default function AssessmentPage() {
 
       setResult({
         scores: data.scores,
-        startingLevel: data.startingLevel,
-        finalLevel: data.finalLevel,
+        startingLevel: data.startingLevel?.name || 'Unknown',
+        finalLevel: data.finalLevel?.name || 'Unknown',
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit assessment')
