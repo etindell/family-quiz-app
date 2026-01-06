@@ -4,7 +4,7 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-export const MODEL = 'claude-opus-4-5-20251101'
+export const MODEL = 'claude-sonnet-4-20250514'
 
 export async function generateJSON<T>(prompt: string, maxRetries = 3): Promise<T> {
   let lastError: Error | null = null
@@ -13,11 +13,13 @@ export async function generateJSON<T>(prompt: string, maxRetries = 3): Promise<T
     try {
       const response = await anthropic.messages.create({
         model: MODEL,
-        max_tokens: 4096,
+        max_tokens: 8192,
         messages: [
           {
             role: 'user',
-            content: prompt,
+            content: prompt + '
+
+IMPORTANT: Return ONLY valid JSON. No markdown, no code blocks, no extra text.',
           },
         ],
       })
