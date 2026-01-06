@@ -1,4 +1,5 @@
 import { prisma } from './prisma'
+import { generateJSON } from './anthropic'
 
 export interface AssessmentQuestion {
   id: string
@@ -21,6 +22,15 @@ export interface AdaptiveAssessmentPool {
   levels: Level[]
 }
 
+interface GeneratedResponse {
+  questions: Array<{
+    question: string
+    options: string[]
+    correct_answer: string
+    explanation: string
+  }>
+}
+
 const QUESTIONS_PER_LEVEL = 3
 
 // Fisher-Yates shuffle
@@ -33,16 +43,42 @@ function shuffleArray<T>(array: T[]): T[] {
   return result
 }
 
+// Fallback: generate questions on-the-fly if none in database
+async function generateQuestionsForLevel(
+  subjectName: string,
+  level: Level,
+  count: number
+): Promise<AssessmentQuestion[]> {
+  const prompt = `Generate ${count} multiple choice questions for ${subjectName} at the ${level.name} level.
+
+Return JSON: {"questions": [{"question": "...", "options": ["A", "B", "C", "D"], "correct_answer": "B", "explanation": "..."}]}`
+
+  const response = await generateJSON<GeneratedResponse>(prompt)
+
+  return response.questions.map((q, index) => ({
+    id: `q_${level.sortOrder}_${index + 1}`,
+    question: q.question,
+    options: q.options,
+    correct_answer: q.correct_answer,
+    explanation: q.explanation,
+    level: level.name,
+    level_id: level.id,
+  }))
+}
+
 export async function generateAdaptiveAssessment(
   subjectId: string,
-  levels: Level[]
+  levels: Level[],
+  subjectName?: string
 ): Promise<AdaptiveAssessmentPool> {
   const questionsByLevel: Record<string, AssessmentQuestion[]> = {}
 
-  // Initialize empty arrays for each level
-  for (const level of levels) {
-    questionsByLevel[level.id] = []
-  }
+  // Check total questions in database for this subject
+  const totalDbQuestions = await prisma.question.count({
+    where: { subjectId },
+  })
+
+  console.log(`Found ${totalDbQuestions} questions in database for subject ${subjectId}`)
 
   // Fetch random questions for each level from the database
   for (const level of levels) {
@@ -53,20 +89,31 @@ export async function generateAdaptiveAssessment(
       },
     })
 
-    // Shuffle and take QUESTIONS_PER_LEVEL
-    const shuffled = shuffleArray(dbQuestions)
-    const selected = shuffled.slice(0, QUESTIONS_PER_LEVEL)
+    if (dbQuestions.length >= QUESTIONS_PER_LEVEL) {
+      // Use database questions
+      const shuffled = shuffleArray(dbQuestions)
+      const selected = shuffled.slice(0, QUESTIONS_PER_LEVEL)
 
-    // Transform to AssessmentQuestion format
-    questionsByLevel[level.id] = selected.map((q, index) => ({
-      id: `q_${level.sortOrder}_${index + 1}`,
-      question: q.question,
-      options: JSON.parse(q.options) as string[],
-      correct_answer: q.correctAnswer,
-      explanation: q.explanation,
-      level: level.name,
-      level_id: level.id,
-    }))
+      questionsByLevel[level.id] = selected.map((q, index) => ({
+        id: `q_${level.sortOrder}_${index + 1}`,
+        question: q.question,
+        options: JSON.parse(q.options) as string[],
+        correct_answer: q.correctAnswer,
+        explanation: q.explanation,
+        level: level.name,
+        level_id: level.id,
+      }))
+    } else if (subjectName) {
+      // Fallback: generate on-the-fly
+      console.log(`No questions for ${level.name}, generating on-the-fly...`)
+      questionsByLevel[level.id] = await generateQuestionsForLevel(
+        subjectName,
+        level,
+        QUESTIONS_PER_LEVEL
+      )
+    } else {
+      questionsByLevel[level.id] = []
+    }
   }
 
   return {
