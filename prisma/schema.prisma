@@ -48,6 +48,7 @@ model Subject {
   categories        Category[]
   assessments       Assessment[]
   userSubjectLevels UserSubjectLevel[]
+  questions         Question[]
 
   @@map("subjects")
 }
@@ -63,6 +64,7 @@ model Level {
   userSubjectLevelsCurrent  UserSubjectLevel[] @relation("CurrentLevel")
   userSubjectLevelsSuggested UserSubjectLevel[] @relation("SuggestedLevel")
   assessmentsSuggested      Assessment[]
+  questions                 Question[]
 
   @@unique([subjectId, name])
   @@map("levels")
@@ -150,4 +152,20 @@ model UserSubjectLevel {
 
   @@unique([userId, subjectId])
   @@map("user_subject_levels")
+}
+
+model Question {
+  id            String   @id @default(uuid())
+  subjectId     String   @map("subject_id")
+  levelId       String   @map("level_id")
+  question      String
+  options       String   // JSON array of 4 options
+  correctAnswer String   @map("correct_answer")
+  explanation   String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  level   Level   @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  @@map("questions")
 }

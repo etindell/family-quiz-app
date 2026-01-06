@@ -67,7 +67,7 @@ export async function POST(
 
     // Generate adaptive assessment question pool
     const pool = await generateAdaptiveAssessment(
-      subject.name,
+      subject.id,
       subject.levels.map((l) => ({ id: l.id, name: l.name, sortOrder: l.sortOrder }))
     )
 
