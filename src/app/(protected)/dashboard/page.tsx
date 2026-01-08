@@ -163,7 +163,9 @@ export default function DashboardPage() {
                           {stat.subject.name}
                         </h3>
                         {hasLevel ? (
-                          <p className="text-sm text-gray-600">{stat.currentLevel?.name}</p>
+                          <p className="text-sm text-gray-600">
+                            Current: <span className="font-medium">{stat.currentLevel?.name}</span>
+                          </p>
                         ) : (
                           <p className="text-sm text-orange-600 font-medium">No level selected</p>
                         )}
@@ -176,6 +178,24 @@ export default function DashboardPage() {
                       View Details
                     </Link>
                   </div>
+                  {/* Assessment Status Warning */}
+                  {hasLevel && (
+                    <div className="mt-3">
+                      {!stat.suggestedLevel ? (
+                        <p className="text-sm text-red-600 font-medium bg-red-50 px-3 py-2 rounded">
+                          No assessment taken
+                        </p>
+                      ) : stat.suggestedLevel.id !== stat.currentLevel?.id ? (
+                        <p className="text-sm text-red-600 font-medium bg-red-50 px-3 py-2 rounded">
+                          Assessed level: {stat.suggestedLevel.name}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded">
+                          Level matches assessment
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Content based on whether level is set */}

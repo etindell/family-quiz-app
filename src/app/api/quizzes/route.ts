@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { generateQuiz } from '@/lib/quiz-generator'
+import { generateQuiz, TopicOutOfLevelError } from '@/lib/quiz-generator'
 
 export async function GET(request: NextRequest) {
   try {
@@ -196,6 +196,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ quiz })
     }
   } catch (error) {
+    if (error instanceof TopicOutOfLevelError) {
+      return NextResponse.json(
+        {
+          error: 'Topic outside current level',
+          reason: error.reason,
+          suggestedTopic: error.suggestedTopic,
+        },
+        { status: 400 }
+      )
+    }
     console.error('Create quiz error:', error)
     return NextResponse.json({ error: 'Failed to create quiz' }, { status: 500 })
   }
