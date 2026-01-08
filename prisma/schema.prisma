@@ -17,12 +17,14 @@ model User {
   lastQuizDate  DateTime? @map("last_quiz_date")
   longestStreak Int      @default(0) @map("longest_streak")
 
-  categories        Category[]
-  quizzes           Quiz[]
-  attempts          Attempt[]
-  assessments       Assessment[]
-  userSubjectLevels UserSubjectLevel[]
-  sessions          Session[]
+  categories         Category[]
+  quizzes            Quiz[]
+  attempts           Attempt[]
+  assessments        Assessment[]
+  userSubjectLevels  UserSubjectLevel[]
+  sessions           Session[]
+  subtopicQuestions  SubtopicQuestion[]
+  dailyLevelScores   DailyLevelScore[]
 
   @@map("users")
 }
@@ -59,12 +61,14 @@ model Level {
   name      String
   sortOrder Int    @map("sort_order")
 
-  subject                   Subject            @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  categories                Category[]
-  userSubjectLevelsCurrent  UserSubjectLevel[] @relation("CurrentLevel")
+  subject                    Subject            @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  categories                 Category[]
+  userSubjectLevelsCurrent   UserSubjectLevel[] @relation("CurrentLevel")
   userSubjectLevelsSuggested UserSubjectLevel[] @relation("SuggestedLevel")
-  assessmentsSuggested      Assessment[]
-  questions                 Question[]
+  assessmentsSuggested       Assessment[]
+  questions                  Question[]
+  subtopics                  Subtopic[]
+  dailyLevelScores           DailyLevelScore[]
 
   @@unique([subjectId, name])
   @@map("levels")
@@ -89,6 +93,7 @@ model Category {
 model Quiz {
   id               String   @id @default(uuid())
   categoryId       String   @map("category_id")
+  subtopicId       String?  @map("subtopic_id")
   questions        String   // JSON string
   questionCount    Int      @map("question_count")
   timeLimitMinutes Int?     @map("time_limit_minutes")
@@ -96,6 +101,7 @@ model Quiz {
   createdAt        DateTime @default(now()) @map("created_at")
 
   category Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  subtopic Subtopic? @relation(fields: [subtopicId], references: [id])
   creator  User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
   attempts Attempt[]
 
@@ -168,4 +174,51 @@ model Question {
   level   Level   @relation(fields: [levelId], references: [id], onDelete: Cascade)
 
   @@map("questions")
+}
+
+model Subtopic {
+  id        String @id @default(uuid())
+  levelId   String @map("level_id")
+  name      String
+  prompt    String // Fixed prompt for AI question generation
+  sortOrder Int    @map("sort_order")
+
+  level     Level              @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  quizzes   Quiz[]
+  questions SubtopicQuestion[]
+
+  @@unique([levelId, name])
+  @@map("subtopics")
+}
+
+model SubtopicQuestion {
+  id         String   @id @default(uuid())
+  subtopicId String   @map("subtopic_id")
+  userId     String   @map("user_id")
+  questionId String   @map("question_id") // e.g., "q1", "q2" within a quiz
+  quizId     String   @map("quiz_id")
+  isCorrect  Boolean  @map("is_correct")
+  answeredAt DateTime @default(now()) @map("answered_at")
+
+  subtopic Subtopic @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, subtopicId, answeredAt])
+  @@map("subtopic_questions")
+}
+
+model DailyLevelScore {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  levelId        String   @map("level_id")
+  date           DateTime @db.Date
+  avgScore       Float    @map("avg_score")
+  subtopicScores String   @map("subtopic_scores") // JSON: { subtopicId: score }
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level Level @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, levelId, date])
+  @@index([userId, levelId, date])
+  @@map("daily_level_scores")
 }

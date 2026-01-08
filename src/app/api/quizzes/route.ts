@@ -71,65 +71,130 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { subjectId, levelId, topicName, questionCount, timeLimitMinutes } = await request.json()
+    const { subjectId, levelId, topicName, subtopicId, questionCount, timeLimitMinutes } = await request.json()
 
-    // Validate inputs
-    if (!subjectId || !levelId || !topicName) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
-    const count = questionCount || 10
-    if (count < 10 || count > 20) {
-      return NextResponse.json({ error: 'Question count must be 10-20' }, { status: 400 })
-    }
-
-    // Get subject and level details
-    const [subject, level] = await Promise.all([
-      prisma.subject.findUnique({ where: { id: subjectId } }),
-      prisma.level.findUnique({ where: { id: levelId } }),
-    ])
-
-    if (!subject || !level) {
-      return NextResponse.json({ error: 'Invalid subject or level' }, { status: 400 })
-    }
-
-    // Generate quiz using LLM
-    const questions = await generateQuiz({
-      subject: subject.name,
-      level: level.name,
-      topic: topicName,
-      questionCount: count,
-    })
-
-    // Create category and quiz
-    const category = await prisma.category.create({
-      data: {
-        subjectId,
-        levelId,
-        topicName,
-        createdBy: session.userId,
-      },
-    })
-
-    const quiz = await prisma.quiz.create({
-      data: {
-        categoryId: category.id,
-        questions: JSON.stringify({ questions }),
-        questionCount: count,
-        timeLimitMinutes: timeLimitMinutes || null,
-        createdBy: session.userId,
-      },
-      include: {
-        category: {
-          include: {
-            subject: true,
-            level: true,
+    // Validate inputs - either subtopicId or (subjectId + levelId + topicName) required
+    if (subtopicId) {
+      // Subtopic quiz - fetch subtopic details
+      const subtopic = await prisma.subtopic.findUnique({
+        where: { id: subtopicId },
+        include: {
+          level: {
+            include: {
+              subject: true,
+            },
           },
         },
-      },
-    })
+      })
 
-    return NextResponse.json({ quiz })
+      if (!subtopic) {
+        return NextResponse.json({ error: 'Invalid subtopic' }, { status: 400 })
+      }
+
+      const count = questionCount || 10
+      if (count < 10 || count > 20) {
+        return NextResponse.json({ error: 'Question count must be 10-20' }, { status: 400 })
+      }
+
+      // Generate quiz using subtopic's fixed prompt
+      const questions = await generateQuiz({
+        subject: subtopic.level.subject.name,
+        level: subtopic.level.name,
+        topic: subtopic.prompt,
+        questionCount: count,
+      })
+
+      // Create category with subtopic name as topic
+      const category = await prisma.category.create({
+        data: {
+          subjectId: subtopic.level.subject.id,
+          levelId: subtopic.level.id,
+          topicName: subtopic.name,
+          createdBy: session.userId,
+        },
+      })
+
+      // Create quiz linked to subtopic
+      const quiz = await prisma.quiz.create({
+        data: {
+          categoryId: category.id,
+          subtopicId: subtopic.id,
+          questions: JSON.stringify({ questions }),
+          questionCount: count,
+          timeLimitMinutes: timeLimitMinutes || null,
+          createdBy: session.userId,
+        },
+        include: {
+          category: {
+            include: {
+              subject: true,
+              level: true,
+            },
+          },
+          subtopic: true,
+        },
+      })
+
+      return NextResponse.json({ quiz })
+    } else {
+      // Custom quiz - use provided topic
+      if (!subjectId || !levelId || !topicName) {
+        return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      }
+
+      const count = questionCount || 10
+      if (count < 10 || count > 20) {
+        return NextResponse.json({ error: 'Question count must be 10-20' }, { status: 400 })
+      }
+
+      // Get subject and level details
+      const [subject, level] = await Promise.all([
+        prisma.subject.findUnique({ where: { id: subjectId } }),
+        prisma.level.findUnique({ where: { id: levelId } }),
+      ])
+
+      if (!subject || !level) {
+        return NextResponse.json({ error: 'Invalid subject or level' }, { status: 400 })
+      }
+
+      // Generate quiz using custom topic
+      const questions = await generateQuiz({
+        subject: subject.name,
+        level: level.name,
+        topic: topicName,
+        questionCount: count,
+      })
+
+      // Create category and quiz (no subtopic link)
+      const category = await prisma.category.create({
+        data: {
+          subjectId,
+          levelId,
+          topicName,
+          createdBy: session.userId,
+        },
+      })
+
+      const quiz = await prisma.quiz.create({
+        data: {
+          categoryId: category.id,
+          questions: JSON.stringify({ questions }),
+          questionCount: count,
+          timeLimitMinutes: timeLimitMinutes || null,
+          createdBy: session.userId,
+        },
+        include: {
+          category: {
+            include: {
+              subject: true,
+              level: true,
+            },
+          },
+        },
+      })
+
+      return NextResponse.json({ quiz })
+    }
   } catch (error) {
     console.error('Create quiz error:', error)
     return NextResponse.json({ error: 'Failed to create quiz' }, { status: 500 })

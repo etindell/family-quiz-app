@@ -50,12 +50,14 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const userId = session.userId
     const { id } = await params
     const { answers, timeTakenSeconds, timezone } = await request.json()
 
-    // Get the quiz
+    // Get the quiz with subtopic info
     const quiz = await prisma.quiz.findUnique({
       where: { id },
+      include: { subtopic: true },
     })
 
     if (!quiz) {
@@ -82,7 +84,7 @@ export async function POST(
     const existingAttempt = await prisma.attempt.findFirst({
       where: {
         quizId: id,
-        userId: session.userId,
+        userId,
       },
     })
 
@@ -91,7 +93,7 @@ export async function POST(
     // Create the attempt
     const attempt = await prisma.attempt.create({
       data: {
-        userId: session.userId,
+        userId,
         quizId: id,
         isFirstAttempt,
         score,
@@ -101,9 +103,24 @@ export async function POST(
       },
     })
 
+    // If this quiz is linked to a subtopic, record SubtopicQuestion entries for progress tracking
+    if (quiz.subtopicId) {
+      const subtopicQuestions = processedAnswers.map((answer) => ({
+        subtopicId: quiz.subtopicId!,
+        userId,
+        questionId: answer.question_id,
+        quizId: id,
+        isCorrect: answer.is_correct,
+      }))
+
+      await prisma.subtopicQuestion.createMany({
+        data: subtopicQuestions,
+      })
+    }
+
     // Update streak if first attempt
     if (isFirstAttempt) {
-      await updateStreak(session.userId, timezone || 'UTC')
+      await updateStreak(userId, timezone || 'UTC')
     }
 
     return NextResponse.json({ attempt, score, totalQuestions: questions.length })
