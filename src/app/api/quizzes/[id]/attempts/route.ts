@@ -33,7 +33,16 @@ export async function GET(
       orderBy: { completedAt: 'desc' },
     })
 
-    return NextResponse.json({ attempts })
+    // Check if any attempt is complete (all questions answered)
+    const hasCompleteAttempt = attempts.some((a) => {
+      const attemptAnswers = JSON.parse(a.answers) as { answers: Answer[] }
+      const answeredCount = attemptAnswers.answers.filter(
+        (ans) => ans.selected_answer && ans.selected_answer.trim() !== ''
+      ).length
+      return answeredCount === a.totalQuestions
+    })
+
+    return NextResponse.json({ attempts, hasCompleteAttempt })
   } catch (error) {
     console.error('Get attempts error:', error)
     return NextResponse.json({ error: 'Failed to get attempts' }, { status: 500 })
@@ -69,9 +78,12 @@ export async function POST(
     const questions = questionsData.questions
 
     let score = 0
+    let answeredCount = 0
     const processedAnswers: Answer[] = answers.map((answer: { question_id: string; selected_answer: string }) => {
       const question = questions.find((q) => q.id === answer.question_id)
-      const isCorrect = question?.correct_answer === answer.selected_answer
+      const hasAnswer = answer.selected_answer && answer.selected_answer.trim() !== ''
+      if (hasAnswer) answeredCount++
+      const isCorrect = hasAnswer && question?.correct_answer === answer.selected_answer
       if (isCorrect) score++
       return {
         question_id: answer.question_id,
@@ -80,15 +92,44 @@ export async function POST(
       }
     })
 
-    // Check if this is the first attempt
-    const existingAttempt = await prisma.attempt.findFirst({
+    const isComplete = answeredCount === questions.length
+
+    // Check for existing COMPLETE attempts (all questions answered)
+    // An attempt is "complete" if answeredCount equals totalQuestions
+    const existingAttempts = await prisma.attempt.findMany({
       where: {
         quizId: id,
         userId,
       },
+      orderBy: { completedAt: 'asc' },
     })
 
-    const isFirstAttempt = !existingAttempt
+    // Find the first complete attempt (one where all questions were answered)
+    const firstCompleteAttempt = existingAttempts.find((a) => {
+      const attemptAnswers = JSON.parse(a.answers) as { answers: Answer[] }
+      const attemptAnsweredCount = attemptAnswers.answers.filter(
+        (ans) => ans.selected_answer && ans.selected_answer.trim() !== ''
+      ).length
+      return attemptAnsweredCount === a.totalQuestions
+    })
+
+    // This is the "scoring first attempt" if no complete attempt exists yet
+    const isScoringFirstAttempt = !firstCompleteAttempt
+
+    // If this would be the scoring first attempt, require all questions to be answered
+    if (isScoringFirstAttempt && !isComplete) {
+      return NextResponse.json(
+        {
+          error: 'All questions must be answered on your first attempt',
+          answeredCount,
+          totalQuestions: questions.length,
+        },
+        { status: 400 }
+      )
+    }
+
+    // isFirstAttempt for stats purposes = this is the first COMPLETE attempt
+    const isFirstAttempt = isScoringFirstAttempt && isComplete
 
     // Create the attempt
     const attempt = await prisma.attempt.create({

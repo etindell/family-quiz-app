@@ -36,24 +36,31 @@ export default function TakeQuizPage() {
   const [submitting, setSubmitting] = useState(false)
   const [timeLeft, setTimeLeft] = useState<number | null>(null)
   const [startTime] = useState(Date.now())
+  const [hasCompleteAttempt, setHasCompleteAttempt] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   useEffect(() => {
     async function fetchQuiz() {
       try {
-        const res = await fetch(`/api/quizzes/${quizId}`)
-        const data = await res.json()
+        const [quizRes, attemptsRes] = await Promise.all([
+          fetch(`/api/quizzes/${quizId}`),
+          fetch(`/api/quizzes/${quizId}/attempts`),
+        ])
+        const quizData = await quizRes.json()
+        const attemptsData = await attemptsRes.json()
 
-        if (!data.quiz) {
+        if (!quizData.quiz) {
           router.push('/browse')
           return
         }
 
-        setQuiz(data.quiz)
-        const parsedQuestions = JSON.parse(data.quiz.questions).questions
+        setQuiz(quizData.quiz)
+        const parsedQuestions = JSON.parse(quizData.quiz.questions).questions
         setQuestions(parsedQuestions)
+        setHasCompleteAttempt(attemptsData.hasCompleteAttempt || false)
 
-        if (data.quiz.timeLimitMinutes) {
-          setTimeLeft(data.quiz.timeLimitMinutes * 60)
+        if (quizData.quiz.timeLimitMinutes) {
+          setTimeLeft(quizData.quiz.timeLimitMinutes * 60)
         }
       } catch (error) {
         console.error('Failed to fetch quiz:', error)
@@ -67,6 +74,7 @@ export default function TakeQuizPage() {
 
   const submitQuiz = useCallback(async () => {
     if (submitting) return
+    setSubmitError('')
     setSubmitting(true)
 
     const timeTaken = Math.floor((Date.now() - startTime) / 1000)
@@ -87,9 +95,17 @@ export default function TakeQuizPage() {
       })
 
       const data = await res.json()
+
+      if (!res.ok) {
+        setSubmitError(data.error || 'Failed to submit quiz')
+        setSubmitting(false)
+        return
+      }
+
       router.push(`/quiz/${quizId}/results/${data.attempt.id}`)
     } catch (error) {
       console.error('Failed to submit quiz:', error)
+      setSubmitError('Failed to submit quiz. Please try again.')
       setSubmitting(false)
     }
   }, [submitting, startTime, questions, answers, quizId, router])
@@ -127,6 +143,8 @@ export default function TakeQuizPage() {
   const currentQuestion = questions[currentIndex]
   const answeredCount = Object.keys(answers).filter((k) => answers[k]).length
   const isComplete = answeredCount === questions.length
+  const isFirstScoringAttempt = !hasCompleteAttempt
+  const canSubmit = isComplete || hasCompleteAttempt
 
   function formatTime(seconds: number) {
     const mins = Math.floor(seconds / 60)
@@ -239,22 +257,42 @@ export default function TakeQuizPage() {
         ) : (
           <button
             onClick={submitQuiz}
-            disabled={submitting}
+            disabled={submitting || !canSubmit}
             className={`px-6 py-2 rounded-lg font-medium ${
               isComplete
                 ? 'bg-green-600 text-white hover:bg-green-700'
-                : 'bg-yellow-500 text-white hover:bg-yellow-600'
+                : canSubmit
+                ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                : 'bg-gray-400 text-white cursor-not-allowed'
             } disabled:opacity-50`}
           >
-            {submitting ? 'Submitting...' : isComplete ? 'Submit Quiz' : 'Submit Incomplete'}
+            {submitting ? 'Submitting...' : isComplete ? 'Submit Quiz' : canSubmit ? 'Submit Incomplete' : 'Answer All Questions'}
           </button>
         )}
       </div>
 
+      {submitError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mt-4 text-center">
+          {submitError}
+        </div>
+      )}
+
       {!isComplete && currentIndex === questions.length - 1 && (
-        <p className="text-center text-sm text-yellow-600 mt-4">
-          You have {questions.length - answeredCount} unanswered question(s)
-        </p>
+        <div className="mt-4 text-center">
+          {isFirstScoringAttempt ? (
+            <p className="text-sm text-red-600 font-medium">
+              You must answer all {questions.length} questions before submitting your first attempt.
+              <br />
+              <span className="text-gray-600 font-normal">
+                {questions.length - answeredCount} question(s) remaining
+              </span>
+            </p>
+          ) : (
+            <p className="text-sm text-yellow-600">
+              You have {questions.length - answeredCount} unanswered question(s)
+            </p>
+          )}
+        </div>
       )}
     </div>
   )
