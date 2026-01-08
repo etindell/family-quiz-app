@@ -221,53 +221,119 @@ export default function SubjectPage() {
         </div>
       </div>
 
-      {/* Level Selection */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Level</h2>
-        <div className="flex flex-wrap items-center gap-4">
-          <select
-            value={selectedLevelId}
-            onChange={(e) => {
-              setSelectedLevelId(e.target.value)
-              if (e.target.value) {
-                fetchLevelProgress(e.target.value)
-              }
-            }}
-            className="px-4 py-2 border border-gray-300 rounded-md"
-          >
-            <option value="">Select a level</option>
-            {subject.levels.map((level) => (
-              <option key={level.id} value={level.id}>
-                {level.name}
-              </option>
-            ))}
-          </select>
+      {/* Level Selection - Prominent when no level set */}
+      {!userLevel?.currentLevel ? (
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg p-8 text-white">
+          <h2 className="text-2xl font-bold mb-2">Get Started with {subject.name}</h2>
+          <p className="text-blue-100 mb-6">
+            Select your level to unlock personalized quizzes and track your progress through
+            subtopics.
+          </p>
 
-          {selectedLevelId !== (userLevel?.currentLevel?.id || '') && selectedLevelId && (
-            <button
-              onClick={updateLevel}
-              disabled={changingLevel}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:opacity-50"
+          <div className="bg-white/10 rounded-lg p-6 mb-6">
+            <label className="block text-sm font-medium text-blue-100 mb-2">
+              Choose Your Level
+            </label>
+            <div className="flex flex-wrap gap-3">
+              <select
+                value={selectedLevelId}
+                onChange={(e) => {
+                  setSelectedLevelId(e.target.value)
+                  if (e.target.value) {
+                    fetchLevelProgress(e.target.value)
+                  }
+                }}
+                className="flex-1 min-w-[200px] px-4 py-3 border-0 rounded-lg text-gray-900 text-lg"
+              >
+                <option value="">Select a level...</option>
+                {subject.levels.map((level) => (
+                  <option key={level.id} value={level.id}>
+                    {level.name}
+                  </option>
+                ))}
+              </select>
+
+              {selectedLevelId && (
+                <button
+                  onClick={updateLevel}
+                  disabled={changingLevel}
+                  className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 font-medium text-lg"
+                >
+                  {changingLevel ? 'Saving...' : 'Start Learning'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-4 items-center">
+            <span className="text-blue-100">Not sure which level?</span>
+            <Link
+              href={`/subjects/${subjectId}/assess`}
+              className="px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 font-medium"
             >
-              {changingLevel ? 'Saving...' : 'Set Level'}
-            </button>
-          )}
+              Take Assessment
+            </Link>
+          </div>
 
-          <Link
-            href={`/subjects/${subjectId}/assess`}
-            className="px-4 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50"
-          >
-            Take Assessment
-          </Link>
-        </div>
-
-        {userLevel?.suggestedLevel &&
-          userLevel.suggestedLevel.id !== userLevel.currentLevel?.id && (
-            <p className="mt-3 text-sm text-blue-600">
+          {userLevel?.suggestedLevel && (
+            <p className="mt-4 text-green-300 font-medium">
               Assessment suggests: {userLevel.suggestedLevel.name}
             </p>
           )}
-      </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Current Level</h2>
+              <p className="text-2xl font-bold text-blue-600">{userLevel.currentLevel.name}</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={selectedLevelId}
+                onChange={(e) => {
+                  setSelectedLevelId(e.target.value)
+                  if (e.target.value) {
+                    fetchLevelProgress(e.target.value)
+                  }
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md"
+              >
+                {subject.levels.map((level) => (
+                  <option key={level.id} value={level.id}>
+                    {level.name}
+                  </option>
+                ))}
+              </select>
+
+              {selectedLevelId !== userLevel.currentLevel.id && selectedLevelId && (
+                <button
+                  onClick={updateLevel}
+                  disabled={changingLevel}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {changingLevel ? 'Saving...' : 'Change Level'}
+                </button>
+              )}
+
+              <Link
+                href={`/subjects/${subjectId}/assess`}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+              >
+                Retake Assessment
+              </Link>
+            </div>
+          </div>
+
+          {userLevel?.suggestedLevel &&
+            userLevel.suggestedLevel.id !== userLevel.currentLevel?.id && (
+              <p className="mt-3 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded">
+                Assessment suggests: {userLevel.suggestedLevel.name}
+              </p>
+            )}
+        </div>
+      )}
 
       {/* Level Mastery Progress */}
       {levelProgress && levelProgress.subtopics.length > 0 && (
