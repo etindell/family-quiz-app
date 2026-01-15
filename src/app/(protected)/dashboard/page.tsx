@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSubject } from '@/contexts/SubjectContext'
+import { getSubjectTheme } from '@/config/subject-themes'
 
 interface Stats {
   streak: {
@@ -50,9 +52,12 @@ interface LevelProgress {
 }
 
 export default function DashboardPage() {
+  const { currentSubject } = useSubject()
   const [stats, setStats] = useState<Stats | null>(null)
-  const [levelProgress, setLevelProgress] = useState<Record<string, LevelProgress>>({})
+  const [levelProgress, setLevelProgress] = useState<LevelProgress | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const theme = currentSubject ? getSubjectTheme(currentSubject.name) : null
 
   useEffect(() => {
     async function fetchStats() {
@@ -61,30 +66,23 @@ export default function DashboardPage() {
         const data = await res.json()
         setStats(data)
 
-        // Fetch level progress for each subject with a level set
-        const progressPromises = data.subjectStats
-          .filter((s: { currentLevel: { id: string } | null }) => s.currentLevel?.id)
-          .map(async (s: { subject: { id: string }; currentLevel: { id: string } }) => {
+        // Fetch level progress for current subject if it has a level
+        if (currentSubject) {
+          const subjectStat = data.subjectStats.find(
+            (s: { subject: { id: string } }) => s.subject.id === currentSubject.id
+          )
+          if (subjectStat?.currentLevel?.id) {
             try {
-              const progressRes = await fetch(`/api/levels/${s.currentLevel.id}/progress`)
+              const progressRes = await fetch(`/api/levels/${subjectStat.currentLevel.id}/progress`)
               if (progressRes.ok) {
                 const progressData = await progressRes.json()
-                return { subjectId: s.subject.id, progress: progressData }
+                setLevelProgress(progressData)
               }
             } catch {
-              console.error(`Failed to fetch progress for subject ${s.subject.id}`)
+              console.error('Failed to fetch level progress')
             }
-            return null
-          })
-
-        const progressResults = await Promise.all(progressPromises)
-        const progressMap: Record<string, LevelProgress> = {}
-        progressResults.forEach((result) => {
-          if (result) {
-            progressMap[result.subjectId] = result.progress
           }
-        })
-        setLevelProgress(progressMap)
+        }
       } catch (error) {
         console.error('Failed to fetch stats:', error)
       } finally {
@@ -93,7 +91,7 @@ export default function DashboardPage() {
     }
 
     fetchStats()
-  }, [])
+  }, [currentSubject])
 
   if (loading) {
     return (
@@ -103,21 +101,76 @@ export default function DashboardPage() {
     )
   }
 
-  if (!stats) {
+  if (!stats || !currentSubject) {
     return <div className="text-center py-12 text-gray-600">Failed to load stats</div>
   }
 
+  // Get stats for current subject only
+  const subjectStat = stats.subjectStats.find((s) => s.subject.id === currentSubject.id)
+  const hasLevel = !!subjectStat?.currentLevel
+
+  // Filter recent activity to current subject only
+  const subjectActivity = stats.recentActivity.filter(
+    (a) => a.subject === currentSubject.name
+  )
+
   return (
     <div className="space-y-8">
+      {/* Subject Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <div className="flex items-center space-x-4">
+          <span className="text-4xl">{currentSubject.icon}</span>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{currentSubject.name}</h1>
+            {hasLevel && (
+              <p className="text-gray-600">
+                Level: <span className="font-medium">{subjectStat?.currentLevel?.name}</span>
+              </p>
+            )}
+          </div>
+        </div>
         <Link
-          href="/quiz/create"
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+          href={`/quiz/create?subjectId=${currentSubject.id}`}
+          className="text-white px-4 py-2 rounded-lg transition"
+          style={{ backgroundColor: theme?.primary || '#2563eb' }}
         >
           Create Quiz
         </Link>
       </div>
+
+      {/* Level Selection CTA if no level */}
+      {!hasLevel && (
+        <div
+          className="rounded-xl p-6 text-white"
+          style={{
+            background: `linear-gradient(135deg, ${theme?.primary || '#2563eb'}, ${theme?.primary || '#2563eb'}dd)`,
+          }}
+        >
+          <h2 className="text-xl font-bold mb-2">Get Started</h2>
+          <p className="text-white/90 mb-4">
+            Select a level to start tracking your progress and unlock personalized quizzes.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={`/subjects/${currentSubject.id}`}
+              className="px-6 py-3 bg-white text-gray-900 rounded-lg hover:bg-gray-100 font-medium"
+            >
+              Select Level
+            </Link>
+            <Link
+              href={`/subjects/${currentSubject.id}/assess`}
+              className="px-6 py-3 bg-white/20 text-white rounded-lg hover:bg-white/30 font-medium"
+            >
+              Take Assessment
+            </Link>
+          </div>
+          {subjectStat?.suggestedLevel && (
+            <p className="text-white/80 text-sm mt-3">
+              Assessment suggests: {subjectStat.suggestedLevel.name}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -127,183 +180,194 @@ export default function DashboardPage() {
           <div className="text-xs text-gray-400 mt-1">Best: {stats.streak.longest}</div>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-3xl font-bold text-blue-600">{stats.overall.totalQuizzes}</div>
+          <div className="text-3xl font-bold" style={{ color: theme?.primary || '#2563eb' }}>
+            {subjectStat?.quizzesCompleted || 0}
+          </div>
           <div className="text-sm text-gray-600">Quizzes Completed</div>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-3xl font-bold text-green-600">{stats.overall.overallAccuracy}%</div>
-          <div className="text-sm text-gray-600">Overall Accuracy</div>
+          <div className="text-3xl font-bold text-green-600">{subjectStat?.accuracy || 0}%</div>
+          <div className="text-sm text-gray-600">Accuracy</div>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-3xl font-bold text-purple-600">{stats.overall.quizzesThisWeek}</div>
-          <div className="text-sm text-gray-600">This Week</div>
+          <div className="text-sm text-gray-600">This Week (all)</div>
         </div>
       </div>
 
-      {/* Subject Cards */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Subjects</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {stats.subjectStats.map((stat) => {
-            const progress = levelProgress[stat.subject.id]
-            const hasLevel = !!stat.currentLevel
+      {/* Level Progress */}
+      {hasLevel && levelProgress && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Level Mastery</h2>
+            <Link
+              href={`/subjects/${currentSubject.id}`}
+              className="text-sm font-medium hover:underline"
+              style={{ color: theme?.primary || '#2563eb' }}
+            >
+              View All Subtopics
+            </Link>
+          </div>
 
-            return (
+          <div className="mb-4">
+            <div className="flex justify-between text-sm mb-2">
+              <span className="text-gray-600">Progress</span>
+              <span className="font-medium text-gray-900">
+                {levelProgress.progress.passed}/{levelProgress.progress.total} subtopics passed
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-4">
               <div
-                key={stat.subject.id}
-                className="bg-white rounded-lg shadow overflow-hidden"
-              >
-                {/* Subject Header */}
-                <div className="p-6 border-b border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-3xl">{stat.subject.icon}</span>
-                      <div>
-                        <h3 className="font-semibold text-lg text-gray-900">
-                          {stat.subject.name}
-                        </h3>
-                        {hasLevel ? (
-                          <p className="text-sm text-gray-600">
-                            Current: <span className="font-medium">{stat.currentLevel?.name}</span>
-                          </p>
-                        ) : (
-                          <p className="text-sm text-orange-600 font-medium">No level selected</p>
-                        )}
-                      </div>
-                    </div>
-                    <Link
-                      href={`/subjects/${stat.subject.id}`}
-                      className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                    >
-                      View Details
-                    </Link>
-                  </div>
-                  {/* Assessment Status Warning */}
-                  {hasLevel && (
-                    <div className="mt-3">
-                      {!stat.suggestedLevel ? (
-                        <p className="text-sm text-red-600 font-medium bg-red-50 px-3 py-2 rounded">
-                          No assessment taken
-                        </p>
-                      ) : stat.suggestedLevel.id !== stat.currentLevel?.id ? (
-                        <p className="text-sm text-red-600 font-medium bg-red-50 px-3 py-2 rounded">
-                          Assessed level: {stat.suggestedLevel.name}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded">
-                          Level matches assessment
-                        </p>
-                      )}
-                    </div>
-                  )}
+                className="h-4 rounded-full transition-all duration-500"
+                style={{
+                  width: `${levelProgress.progress.percent}%`,
+                  backgroundColor: theme?.primary || '#22c55e',
+                }}
+              ></div>
+            </div>
+            <p className="text-sm text-gray-500 mt-2">
+              {levelProgress.progress.percent}% complete - Pass by scoring &gt;90% on last 40 questions
+            </p>
+          </div>
+
+          {/* Assessment Status */}
+          {subjectStat && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              {!subjectStat.suggestedLevel ? (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-orange-600 font-medium">No assessment taken</p>
+                  <Link
+                    href={`/subjects/${currentSubject.id}/assess`}
+                    className="text-sm font-medium hover:underline"
+                    style={{ color: theme?.primary || '#2563eb' }}
+                  >
+                    Take Assessment
+                  </Link>
                 </div>
-
-                {/* Content based on whether level is set */}
-                {hasLevel ? (
-                  <div className="p-6">
-                    {/* Level Progress */}
-                    {progress && (
-                      <div className="mb-4">
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-600">Level Mastery</span>
-                          <span className="font-medium text-gray-900">
-                            {progress.progress.passed}/{progress.progress.total} subtopics
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-3">
-                          <div
-                            className="bg-green-500 h-3 rounded-full transition-all duration-500"
-                            style={{ width: `${progress.progress.percent}%` }}
-                          ></div>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {progress.progress.percent}% complete
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Stats Row */}
-                    <div className="grid grid-cols-2 gap-4 pt-2">
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {stat.quizzesCompleted}
-                        </div>
-                        <div className="text-xs text-gray-600">Quizzes Done</div>
-                      </div>
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">{stat.accuracy}%</div>
-                        <div className="text-xs text-gray-600">Accuracy</div>
-                      </div>
-                    </div>
-
-                    {/* Change Level Link */}
-                    <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
-                      <Link
-                        href={`/subjects/${stat.subject.id}/assess`}
-                        className="text-sm text-gray-600 hover:text-gray-900"
-                      >
-                        Take Assessment
-                      </Link>
-                      <Link
-                        href={`/subjects/${stat.subject.id}`}
-                        className="text-sm text-blue-600 hover:text-blue-700"
-                      >
-                        Change Level
-                      </Link>
-                    </div>
-                  </div>
-                ) : (
-                  /* No Level Set - Prominent CTA */
-                  <div className="p-6 bg-orange-50">
-                    <p className="text-gray-700 mb-4">
-                      Select a level to start tracking your progress and unlock personalized
-                      quizzes.
-                    </p>
-                    <div className="flex flex-wrap gap-3">
-                      <Link
-                        href={`/subjects/${stat.subject.id}`}
-                        className="flex-1 text-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                      >
-                        Select Level
-                      </Link>
-                      <Link
-                        href={`/subjects/${stat.subject.id}/assess`}
-                        className="flex-1 text-center px-4 py-3 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 font-medium"
-                      >
-                        Take Assessment
-                      </Link>
-                    </div>
-                    {stat.suggestedLevel && (
-                      <p className="text-sm text-blue-600 mt-3">
-                        Assessment suggests: {stat.suggestedLevel.name}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+              ) : subjectStat.suggestedLevel.id !== subjectStat.currentLevel?.id ? (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-orange-600 font-medium">
+                    Assessment suggests: {subjectStat.suggestedLevel.name}
+                  </p>
+                  <Link
+                    href={`/subjects/${currentSubject.id}`}
+                    className="text-sm font-medium hover:underline"
+                    style={{ color: theme?.primary || '#2563eb' }}
+                  >
+                    Change Level
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-sm text-green-600">Level matches your assessment</p>
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {/* Quick Actions */}
+      {hasLevel && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Link
+            href={`/subjects/${currentSubject.id}`}
+            className="bg-white rounded-lg shadow p-6 hover:shadow-md transition flex items-center space-x-4"
+          >
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: theme?.primaryLight || '#dbeafe' }}
+            >
+              <svg
+                className="w-6 h-6"
+                style={{ color: theme?.primary || '#2563eb' }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Study Subtopics</h3>
+              <p className="text-sm text-gray-600">Practice specific areas</p>
+            </div>
+          </Link>
+
+          <Link
+            href={`/subjects/${currentSubject.id}/learn`}
+            className="bg-white rounded-lg shadow p-6 hover:shadow-md transition flex items-center space-x-4"
+          >
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: theme?.primaryLight || '#dbeafe' }}
+            >
+              <svg
+                className="w-6 h-6"
+                style={{ color: theme?.primary || '#2563eb' }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">AI Lesson</h3>
+              <p className="text-sm text-gray-600">Get personalized tutoring</p>
+            </div>
+          </Link>
+
+          <Link
+            href={`/subjects/${currentSubject.id}/assess`}
+            className="bg-white rounded-lg shadow p-6 hover:shadow-md transition flex items-center space-x-4"
+          >
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: theme?.primaryLight || '#dbeafe' }}
+            >
+              <svg
+                className="w-6 h-6"
+                style={{ color: theme?.primary || '#2563eb' }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Assessment</h3>
+              <p className="text-sm text-gray-600">Find your level</p>
+            </div>
+          </Link>
+        </div>
+      )}
 
       {/* Recent Activity */}
       <div>
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
-        {stats.recentActivity.length === 0 ? (
+        {subjectActivity.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-600">
-            No quizzes taken yet. Start by{' '}
-            <Link href="/browse" className="text-blue-600 hover:underline">
-              browsing quizzes
+            No quizzes taken yet in {currentSubject.name}. Start by{' '}
+            <Link
+              href={`/subjects/${currentSubject.id}`}
+              className="hover:underline"
+              style={{ color: theme?.primary || '#2563eb' }}
+            >
+              studying subtopics
             </Link>{' '}
             or{' '}
-            <Link href="/quiz/create" className="text-blue-600 hover:underline">
-              creating your own
+            <Link
+              href={`/quiz/create?subjectId=${currentSubject.id}`}
+              className="hover:underline"
+              style={{ color: theme?.primary || '#2563eb' }}
+            >
+              creating a quiz
             </Link>
             .
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow divide-y">
-            {stats.recentActivity.map((activity) => (
+            {subjectActivity.map((activity) => (
               <Link
                 key={activity.id}
                 href={`/quiz/${activity.quizId}/results/${activity.id}`}
@@ -312,9 +376,7 @@ export default function DashboardPage() {
                 <div className="flex justify-between items-center">
                   <div>
                     <div className="font-medium text-gray-900">{activity.topic}</div>
-                    <div className="text-sm text-gray-600">
-                      {activity.subject} - {activity.level}
-                    </div>
+                    <div className="text-sm text-gray-600">{activity.level}</div>
                   </div>
                   <div className="text-right">
                     <div className="font-medium text-gray-900">

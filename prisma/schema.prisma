@@ -16,6 +16,7 @@ model User {
   currentStreak Int      @default(0) @map("current_streak")
   lastQuizDate  DateTime? @map("last_quiz_date")
   longestStreak Int      @default(0) @map("longest_streak")
+  lastSubjectId String?  @map("last_subject_id")
 
   categories         Category[]
   quizzes            Quiz[]
@@ -25,6 +26,7 @@ model User {
   sessions           Session[]
   subtopicQuestions  SubtopicQuestion[]
   dailyLevelScores   DailyLevelScore[]
+  lastSubject        Subject? @relation("LastSubject", fields: [lastSubjectId], references: [id])
 
   @@map("users")
 }
@@ -51,6 +53,7 @@ model Subject {
   assessments       Assessment[]
   userSubjectLevels UserSubjectLevel[]
   questions         Question[]
+  usersLastSubject  User[] @relation("LastSubject")
 
   @@map("subjects")
 }

@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(npm install)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nRebrand app from Family Quiz App to Pruebas\n\n- Update package name and metadata\n- Add landing page with features, how it works, and CTA sections\n- Update branding on login, signup, and header components\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push)",
+      "Bash(git push:*)",
+      "Bash(gh repo rename:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(npx prisma migrate:*)",
+      "Bash(npx prisma:*)",
+      "Bash(railway run npx prisma migrate deploy:*)",
+      "Bash(railway run:*)",
+      "Bash(railway status:*)",
+      "Bash(railway variables:*)",
+      "Bash(railway service:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:yAcMAUtLSqZXAgajrsUUVRHJxttyyzCN@hopper.proxy.rlwy.net:59269/railway\" npx prisma migrate deploy:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:yAcMAUtLSqZXAgajrsUUVRHJxttyyzCN@hopper.proxy.rlwy.net:59269/railway\" npx prisma migrate:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:yAcMAUtLSqZXAgajrsUUVRHJxttyyzCN@hopper.proxy.rlwy.net:59269/railway\" npx prisma db push:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:yAcMAUtLSqZXAgajrsUUVRHJxttyyzCN@hopper.proxy.rlwy.net:59269/railway\" npx prisma db seed:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nRedesign dashboard and subject page with prominent level selection\n\n- Dashboard: Show level progress bars with subtopics passed/total\n- Dashboard: Prominent orange CTA when no level is selected\n- Dashboard: Fetch and display level progress for each subject\n- Subject page: Large blue gradient banner when no level set\n- Subject page: Cleaner layout showing current level prominently\n- Both pages encourage users to select a level to start tracking\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git reset:*)",
+      "Bash(git commit:*)",
+      "Bash(curl:*)",
+      "Bash(railway domain:*)",
+      "Bash(railway open:*)",
+      "Bash(railway logs:*)"
+    ]
+  }
+}

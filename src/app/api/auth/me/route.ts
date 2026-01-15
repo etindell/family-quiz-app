@@ -20,6 +20,14 @@ export async function GET() {
         longestStreak: true,
         lastQuizDate: true,
         createdAt: true,
+        lastSubjectId: true,
+        lastSubject: {
+          select: {
+            id: true,
+            name: true,
+            icon: true,
+          },
+        },
       },
     })
 
