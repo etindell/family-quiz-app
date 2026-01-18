@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
 import { useSubject } from '@/contexts/SubjectContext'
 import { getSubjectTheme } from '@/config/subject-themes'
 import LessonQuiz from '@/components/lesson/LessonQuiz'
@@ -154,25 +155,22 @@ export default function LessonDetailPage() {
               >
                 {section.heading}
               </h2>
-              <div className="prose prose-gray max-w-none">
-                <p className="text-gray-700 whitespace-pre-wrap">{section.content}</p>
+              <div className="prose prose-gray max-w-none prose-strong:text-gray-900 prose-em:text-gray-700 prose-p:my-2 prose-ul:my-2 prose-li:my-1 prose-headings:mt-4 prose-headings:mb-2">
+                <ReactMarkdown>{section.content}</ReactMarkdown>
               </div>
               {section.examples && section.examples.length > 0 && (
-                <div className="mt-4 bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Examples:</h3>
-                  <ul className="space-y-2">
-                    {section.examples.map((example, i) => (
-                      <li key={i} className="flex items-start">
-                        <span
-                          className="mr-2 mt-1"
-                          style={{ color: theme?.primary || '#2563eb' }}
-                        >
-                          •
-                        </span>
-                        <span className="text-gray-700">{example}</span>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="mt-6 space-y-6">
+                  <h3 className="text-lg font-semibold text-gray-800">Examples</h3>
+                  {section.examples.map((example, i) => (
+                    <div
+                      key={i}
+                      className="bg-gray-50 rounded-lg p-5 prose prose-gray max-w-none
+                        prose-strong:text-gray-900 prose-em:text-gray-700
+                        prose-p:my-2 prose-ul:my-2 prose-li:my-0"
+                    >
+                      <ReactMarkdown>{example}</ReactMarkdown>
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
