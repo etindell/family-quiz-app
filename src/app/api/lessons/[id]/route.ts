@@ -61,6 +61,7 @@ export async function GET(
         keyTakeaways,
         sortOrder: lesson.sortOrder,
         totalLessons: allLessons.length,
+        diagramSvg: lesson.diagramSvg,
       },
       subtopic: {
         id: lesson.subtopic.id,

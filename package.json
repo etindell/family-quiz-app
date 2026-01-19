@@ -8,11 +8,13 @@
     "start": "next start",
     "lint": "eslint",
     "generate-questions": "npx tsx prisma/generate-questions.ts",
-    "seed:lessons": "npx tsx prisma/seed-lessons.ts"
+    "seed:lessons": "npx tsx prisma/seed-lessons.ts",
+    "svg:pilot": "npx tsx prisma/seed-svg-pilot.ts",
+    "svg:generate": "npx tsx prisma/seed-svg-full.ts",
+    "svg:update-db": "npx tsx prisma/update-lesson-svgs.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
-    "tsx": "^4.21.0",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.3",
     "iron-session": "^8.0.4",
@@ -20,6 +22,8 @@
     "prisma": "^5.22.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-markdown": "^10.1.0",
+    "tsx": "^4.21.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

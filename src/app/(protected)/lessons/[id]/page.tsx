@@ -24,6 +24,7 @@ interface LessonData {
     keyTakeaways: string[]
     sortOrder: number
     totalLessons: number
+    diagramSvg: string | null
   }
   subtopic: {
     id: string
@@ -144,6 +145,19 @@ export default function LessonDetailPage() {
         <div className="p-6 border-b border-gray-100">
           <p className="text-gray-700 text-lg leading-relaxed">{lesson.introduction}</p>
         </div>
+
+        {/* Diagram */}
+        {lesson.diagramSvg && (
+          <div className="p-6 border-b border-gray-100 bg-slate-50">
+            <div className="flex flex-col items-center">
+              <h3 className="text-sm font-medium text-gray-500 mb-4">Visual Diagram</h3>
+              <div
+                className="bg-white rounded-lg shadow-sm p-4 max-w-full overflow-x-auto"
+                dangerouslySetInnerHTML={{ __html: lesson.diagramSvg }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Sections */}
         <div className="p-6 space-y-8">

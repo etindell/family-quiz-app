@@ -241,6 +241,7 @@ model Lesson {
   content      String   // JSON: { sections: [{heading, content, examples}] }
   keyTakeaways String   @map("key_takeaways") // JSON: string[]
   sortOrder    Int      @map("sort_order")
+  diagramSvg   String?  @map("diagram_svg") // SVG diagram for visual learners
   createdAt    DateTime @default(now()) @map("created_at")
 
   subtopic  Subtopic         @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
